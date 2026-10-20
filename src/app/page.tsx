@@ -71,8 +71,14 @@ export default function TalentScoutApp() {
     });
 
     // Listen for sign-in / sign-out events
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setCurrentUserEmail(session?.user?.email ?? null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const email = session?.user?.email ?? null;
+      setCurrentUserEmail(email);
+
+      // On OAuth callback, close any open auth modal and reload contacts
+      if (event === 'SIGNED_IN' && email) {
+        setAuthModalOpen(false);
+      }
     });
 
     return () => subscription.unsubscribe();
