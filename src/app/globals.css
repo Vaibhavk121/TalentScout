@@ -168,3 +168,16 @@ select.input-base {
 }
 .aurora { animation: aurora 14s ease-in-out infinite; }
 .aurora-2 { animation: aurora 18s 2s ease-in-out infinite reverse; }
+
+/* ─── Native select option colors ───────────────────────── */
+/* Ensures option text is readable on all OSes               */
+select option {
+  background-color: #0f1526;
+  color: #c8d4f0;
+}
+
+select option:checked,
+select option:hover {
+  background-color: #1a2540;
+  color: #f0f4ff;
+}

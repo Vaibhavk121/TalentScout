@@ -19,6 +19,11 @@ export const metadata: Metadata = {
     'LinkedIn recruiter discovery',
     'job search outreach',
   ],
+  icons: {
+    icon: '/vercel.png',
+    shortcut: '/vercel.png',
+    apple: '/vercel.png',
+  },
 };
 
 export default function RootLayout({
