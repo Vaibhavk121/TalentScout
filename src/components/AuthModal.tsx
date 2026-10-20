@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Database, CheckCircle2, Copy, Check, Lock, Mail, LogOut, User } from 'lucide-react';
+import { Copy, Check, Lock, Mail, LogOut, User, AlertCircle } from 'lucide-react';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
-import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase/client';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -54,8 +54,6 @@ export function AuthModal({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [sqlCopied, setSqlCopied] = useState(false);
 
-  const supabaseConfigured = isSupabaseConfigured();
-
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
@@ -63,11 +61,8 @@ export function AuthModal({
 
     const supabase = getSupabaseClient();
     if (!supabase) {
-      setTimeout(() => {
-        onSignInSuccess(email || 'user@talentscout.local');
-        setLoading(false);
-        onClose();
-      }, 300);
+      setErrorMsg('Supabase is not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.');
+      setLoading(false);
       return;
     }
 
@@ -79,7 +74,7 @@ export function AuthModal({
           onSignInSuccess(data.user.email);
           onClose();
         } else {
-          setErrorMsg('Check your inbox to confirm your email before signing in.');
+          setErrorMsg('Check your inbox to confirm your email, then sign in.');
         }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -90,14 +85,16 @@ export function AuthModal({
         }
       }
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Authentication failed');
+      setErrorMsg(err instanceof Error ? err.message : 'Authentication failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGuestSignIn = () => {
-    onSignInSuccess('user@talentscout.local');
+  const handleSignOut = async () => {
+    const supabase = getSupabaseClient();
+    if (supabase) await supabase.auth.signOut();
+    onSignOut();
     onClose();
   };
 
@@ -115,30 +112,11 @@ export function AuthModal({
       description={
         userEmail
           ? 'Manage your session and cloud sync settings.'
-          : 'Save contacts and sync your pipeline across devices.'
+          : 'Sign in to save contacts and sync your pipeline across devices.'
       }
       maxWidth="md"
     >
       <div className="space-y-4">
-        {/* Storage status pill */}
-        <div
-          className="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-[0.8125rem]"
-          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}
-        >
-          <div className="flex items-center gap-2 text-[#505870]">
-            <Database className="w-4 h-4" />
-            <span>Storage</span>
-          </div>
-          {supabaseConfigured ? (
-            <span className="flex items-center gap-1.5 text-emerald-400 text-[11px] font-semibold">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              Supabase connected
-            </span>
-          ) : (
-            <span className="text-[#505870] text-[11px] font-medium">Local browser storage</span>
-          )}
-        </div>
-
         {/* Tab switcher */}
         <div
           className="flex rounded-xl p-1"
@@ -149,9 +127,7 @@ export function AuthModal({
               key={t}
               onClick={() => setTab(t)}
               className={`flex-1 py-2 text-[0.8125rem] font-semibold rounded-lg transition-colors cursor-pointer ${
-                tab === t
-                  ? 'bg-white/8 text-[#f0f4ff]'
-                  : 'text-[#505870] hover:text-[#8892aa]'
+                tab === t ? 'bg-white/8 text-[#f0f4ff]' : 'text-[#505870] hover:text-[#8892aa]'
               }`}
             >
               {t === 'auth' ? 'Account' : 'Database SQL'}
@@ -161,47 +137,41 @@ export function AuthModal({
 
         {tab === 'auth' ? (
           userEmail ? (
-            /* Signed-in state */
+            /* ── Signed-in state ── */
             <div className="space-y-4">
               <div
                 className="flex items-center gap-3 p-4 rounded-xl"
                 style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}
               >
                 <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm text-[#f0f4ff] shrink-0"
+                  className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
                   style={{ background: 'rgba(79,142,247,0.15)', border: '1px solid rgba(79,142,247,0.2)' }}
                 >
                   <User className="w-5 h-5 text-blue-400" />
                 </div>
                 <div>
                   <p className="text-[0.8125rem] font-semibold text-[#f0f4ff]">{userEmail}</p>
-                  <p className="text-[11px] text-[#505870]">Active session</p>
+                  <p className="text-[11px] text-[#505870]">Active session · Cloud synced</p>
                 </div>
               </div>
-              <div className="flex items-center justify-between pt-1">
-                <Button variant="ghost" size="sm" onClick={onClose}>
-                  Close
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => { onSignOut(); onClose(); }}
-                  className="gap-1.5"
-                >
+              <div className="flex items-center justify-between">
+                <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
+                <Button variant="destructive" size="sm" onClick={handleSignOut} className="gap-1.5">
                   <LogOut className="w-3.5 h-3.5" />
                   Sign Out
                 </Button>
               </div>
             </div>
           ) : (
-            /* Sign-in form */
+            /* ── Sign-in / Sign-up form ── */
             <form onSubmit={handleAuth} className="space-y-3">
               {errorMsg && (
                 <div
-                  className="px-3 py-2.5 rounded-xl text-[0.8125rem] text-red-400"
+                  className="flex items-start gap-2 px-3 py-2.5 rounded-xl text-[0.8125rem] text-red-400"
                   style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)' }}
                 >
-                  {errorMsg}
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{errorMsg}</span>
                 </div>
               )}
 
@@ -240,52 +210,32 @@ export function AuthModal({
                 </div>
               </div>
 
-              <div className="space-y-2 pt-1">
+              <div className="space-y-2.5 pt-1">
                 <Button type="submit" variant="primary" size="md" isLoading={loading} className="w-full">
                   {mode === 'signin' ? 'Sign In' : 'Create Account'}
                 </Button>
 
                 <button
                   type="button"
-                  onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
+                  onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setErrorMsg(null); }}
                   className="w-full text-center text-[0.8125rem] text-[#505870] hover:text-blue-400 transition-colors py-1 cursor-pointer"
                 >
-                  {mode === 'signin' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+                  {mode === 'signin'
+                    ? "Don't have an account? Sign up"
+                    : 'Already have an account? Sign in'}
                 </button>
-
-                <div className="relative py-2 text-center">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }} />
-                  </div>
-                  <span
-                    className="relative px-3 text-[11px] text-[#505870] uppercase tracking-wider"
-                    style={{ background: '#0a0d1a' }}
-                  >
-                    or
-                  </span>
-                </div>
-
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleGuestSignIn}
-                  className="w-full"
-                >
-                  Continue without account
-                </Button>
               </div>
             </form>
           )
         ) : (
-          /* SQL Setup tab */
+          /* ── Database SQL tab ── */
           <div className="space-y-3">
             <p className="text-[0.8125rem] text-[#505870] leading-relaxed">
-              Run this in your Supabase SQL Editor to enable cloud sync for saved contacts:
+              Run this once in your Supabase SQL Editor to enable cloud sync:
             </p>
             <div className="relative">
               <pre
-                className="p-4 rounded-xl text-[11px] font-mono text-[#8892aa] overflow-x-auto max-h-52 leading-relaxed"
+                className="p-4 rounded-xl text-[11px] font-mono text-[#8892aa] overflow-x-auto max-h-52 leading-relaxed whitespace-pre-wrap"
                 style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}
               >
                 {SAMPLE_SQL}
@@ -295,11 +245,10 @@ export function AuthModal({
                 className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium cursor-pointer transition-all text-[#8892aa] hover:text-[#f0f4ff]"
                 style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
               >
-                {sqlCopied ? (
-                  <><Check className="w-3 h-3 text-emerald-400" /><span>Copied</span></>
-                ) : (
-                  <><Copy className="w-3 h-3" /><span>Copy</span></>
-                )}
+                {sqlCopied
+                  ? <><Check className="w-3 h-3 text-emerald-400" /><span>Copied</span></>
+                  : <><Copy className="w-3 h-3" /><span>Copy</span></>
+                }
               </button>
             </div>
           </div>

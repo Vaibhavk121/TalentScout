@@ -25,6 +25,7 @@ import {
   updateContactInStorage,
   deleteContactFromStorage,
 } from '@/lib/supabase/db';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import {
   AlertTriangle,
   RefreshCw,
@@ -59,6 +60,25 @@ export default function TalentScoutApp() {
   const [activeOutreachProfile, setActiveOutreachProfile] = useState<RecruiterProfile | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
+  // Restore session on mount + listen for auth changes
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    // Check existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.email) setCurrentUserEmail(session.user.email);
+    });
+
+    // Listen for sign-in / sign-out events
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUserEmail(session?.user?.email ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Check Serper API key status
   useEffect(() => {
     fetch('/api/search')
       .then((r) => r.ok ? r.json() : null)
@@ -66,6 +86,7 @@ export default function TalentScoutApp() {
       .catch(() => {});
   }, []);
 
+  // Reload saved contacts whenever auth state changes
   useEffect(() => {
     fetchSavedContacts().then(({ contacts, storageType: st }) => {
       setSavedContacts(contacts);

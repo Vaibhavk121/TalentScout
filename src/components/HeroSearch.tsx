@@ -132,12 +132,12 @@ export function HeroSearch({ onSearch, isLoading, initialFilters }: HeroSearchPr
             <div className="flex flex-col sm:flex-row items-stretch gap-1.5">
               {/* Company Input */}
               <div className="relative flex-1 flex items-center">
-                <Building2 className="w-4.5 h-4.5 text-[#505870] absolute left-4 pointer-events-none shrink-0" />
+                <Building2 className="w-4 h-4 text-[#505870] absolute left-4 pointer-events-none shrink-0" />
                 <input
                   type="text"
                   value={company}
                   onChange={(e) => setCompany(e.target.value)}
-                  placeholder="Enter target company  (e.g. Stripe, Airbnb, OpenAI)"
+                  placeholder="Enter target company (e.g. Stripe, Airbnb, OpenAI)"
                   className="w-full pl-11 pr-4 py-3.5 bg-transparent text-[#f0f4ff] placeholder-[#505870] text-[0.9375rem] focus:outline-none"
                   required
                   autoComplete="off"
