@@ -65,7 +65,23 @@ export default function TalentScoutApp() {
     const supabase = getSupabaseClient();
     if (!supabase) return;
 
-    // Check existing session
+    // Handle PKCE code exchange on OAuth callback (code arrives as ?code=... query param)
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code).then(({ data, error }) => {
+        if (!error && data.session?.user?.email) {
+          setCurrentUserEmail(data.session.user.email);
+          setAuthModalOpen(false);
+          // Clean the code from the URL without a page reload
+          const clean = new URL(window.location.href);
+          clean.searchParams.delete('code');
+          window.history.replaceState({}, '', clean.toString());
+        }
+      });
+    }
+
+    // Check existing session (for returning users)
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user?.email) setCurrentUserEmail(session.user.email);
     });
@@ -74,8 +90,6 @@ export default function TalentScoutApp() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       const email = session?.user?.email ?? null;
       setCurrentUserEmail(email);
-
-      // On OAuth callback, close any open auth modal and reload contacts
       if (event === 'SIGNED_IN' && email) {
         setAuthModalOpen(false);
       }
