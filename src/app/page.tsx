@@ -55,6 +55,7 @@ export default function TalentScoutApp() {
   const [savedContacts, setSavedContacts] = useState<SavedContact[]>([]);
   const [storageType, setStorageType] = useState<'supabase' | 'local'>('local');
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const [outreachModalOpen, setOutreachModalOpen] = useState(false);
   const [activeOutreachProfile, setActiveOutreachProfile] = useState<RecruiterProfile | null>(null);
@@ -68,17 +69,36 @@ export default function TalentScoutApp() {
     // Handle PKCE code exchange on OAuth callback (code arrives as ?code=... query param)
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
+    const callbackError = params.get('auth_error');
+    if (callbackError) {
+      queueMicrotask(() => {
+        setAuthError(callbackError);
+        setAuthModalOpen(true);
+      });
+      const clean = new URL(window.location.href);
+      clean.searchParams.delete('auth_error');
+      window.history.replaceState({}, '', clean.toString());
+    }
     if (code) {
-      supabase.auth.exchangeCodeForSession(code).then(({ data, error }) => {
-        if (!error && data.session?.user?.email) {
+      void (async () => {
+        try {
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) throw error;
+          if (!data.session?.user?.email) {
+            throw new Error('Google sign-in did not create a session. Please try again.');
+          }
           setCurrentUserEmail(data.session.user.email);
           setAuthModalOpen(false);
-          // Clean the code from the URL without a page reload
+          setAuthError(null);
+        } catch (err: unknown) {
+          setAuthError(err instanceof Error ? err.message : 'Google sign-in failed. Please try again.');
+          setAuthModalOpen(true);
+        } finally {
           const clean = new URL(window.location.href);
           clean.searchParams.delete('code');
           window.history.replaceState({}, '', clean.toString());
         }
-      });
+      })();
     }
 
     // Check existing session (for returning users)
@@ -542,7 +562,12 @@ export default function TalentScoutApp() {
         isOpen={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
         userEmail={currentUserEmail}
-        onSignInSuccess={(email) => setCurrentUserEmail(email)}
+        initialErrorMessage={authError}
+        onClearInitialError={() => setAuthError(null)}
+        onSignInSuccess={(email) => {
+          setAuthError(null);
+          setCurrentUserEmail(email);
+        }}
         onSignOut={() => setCurrentUserEmail(null)}
       />
     </div>
