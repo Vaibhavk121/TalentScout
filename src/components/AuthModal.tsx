@@ -10,6 +10,8 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   userEmail?: string | null;
+  initialErrorMessage?: string | null;
+  onClearInitialError: () => void;
   onSignInSuccess: (email: string) => void;
   onSignOut: () => void;
 }
@@ -67,6 +69,8 @@ export function AuthModal({
   isOpen,
   onClose,
   userEmail,
+  initialErrorMessage,
+  onClearInitialError,
   onSignInSuccess,
   onSignOut,
 }: AuthModalProps) {
@@ -82,6 +86,7 @@ export function AuthModal({
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+    onClearInitialError();
     setLoading(true);
 
     const supabase = getSupabaseClient();
@@ -95,8 +100,8 @@ export function AuthModal({
       if (mode === 'signup') {
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-        if (data.user?.email) {
-          onSignInSuccess(data.user.email);
+        if (data.session?.user.email) {
+          onSignInSuccess(data.session.user.email);
           onClose();
         } else {
           setErrorMsg('Check your inbox to confirm your email, then sign in.');
@@ -104,9 +109,11 @@ export function AuthModal({
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        if (data.user?.email) {
-          onSignInSuccess(data.user.email);
+        if (data.session?.user.email) {
+          onSignInSuccess(data.session.user.email);
           onClose();
+        } else {
+          setErrorMsg('Sign-in did not create a session. Please try again.');
         }
       }
     } catch (err: unknown) {
@@ -124,14 +131,17 @@ export function AuthModal({
     }
     setGoogleLoading(true);
     setErrorMsg(null);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-    if (error) {
-      setErrorMsg(error.message);
+    onClearInitialError();
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      if (error) throw error;
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Google sign-in failed. Please try again.');
       setGoogleLoading(false);
     }
     // On success Supabase redirects the browser — no further action needed
@@ -211,13 +221,13 @@ export function AuthModal({
           ) : (
             /* ── Sign-in / Sign-up form ── */
             <div className="space-y-4">
-              {errorMsg && (
+              {(errorMsg || initialErrorMessage) && (
                 <div
                   className="flex items-start gap-2 px-3 py-2.5 rounded-xl text-[0.8125rem] text-red-400"
                   style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)' }}
                 >
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{errorMsg}</span>
+                  <span>{errorMsg || initialErrorMessage}</span>
                 </div>
               )}
 
@@ -304,7 +314,11 @@ export function AuthModal({
 
                   <button
                     type="button"
-                    onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setErrorMsg(null); }}
+                    onClick={() => {
+                      setMode(mode === 'signin' ? 'signup' : 'signin');
+                      setErrorMsg(null);
+                      onClearInitialError();
+                    }}
                     className="w-full text-center text-[0.8125rem] text-[#505870] hover:text-blue-400 transition-colors py-1 cursor-pointer"
                   >
                     {mode === 'signin'
